@@ -1,0 +1,24 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no">
+</head>
+<script src="WebGLPerformanceTest.js"></script>
+<script>
+
+  function decrementDimensions(test) {
+    test.canvas.width--;
+    if (test.canvas.width <= 0) test.canvas.width = 16;
+    test.canvas.height--;
+    if (test.canvas.height <= 0) test.canvas.height = 16;
+  }
+
+  function start() {
+    var manifest = {
+      title  : "Decrement canvas dimensions",
+      frameCallback : decrementDimensions
+    };
+    test(manifest);
+  }
+</script>
+<body onload="start();">

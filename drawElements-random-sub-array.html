@@ -1,0 +1,146 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no">
+</head>
+<script src="WebGLPerformanceTest.js"></script>
+<script>
+
+  var elementArray;
+
+  var pseudoRandomState = 123;
+
+  // need pseudo-random with constant seed for reproducibility
+  function pseudoRandomUint16() {
+    pseudoRandomState = 36969 * (pseudoRandomState & 65535) + (pseudoRandomState >> 16);
+    return pseudoRandomState & 65535;
+  }
+
+  function pseudoRandom() {
+    return pseudoRandomUint16() / 65535;
+  }
+
+  // The frame function -- just random sub-array draws. Some will fail, some will succeed.
+  // the point of including error cases in the benchmark is that we want to cover the case
+  // where some elements in the element array buffer are too large, so that the naive
+  // optimization caching the max element is not enough here; we could test that without
+  // generating errors, but that would require more carefully generated buffers and draw calls.
+  // A real application would do that of course.
+  function drawElementsRandomSubArray(test) {
+    var gl = test.gl;
+    var draws = 100;
+    for (var i = 0; i < draws; i++) {
+      var drawSize = pseudoRandomUint16() % elementArray.length;
+      var drawOffset = 2 * (pseudoRandomUint16() % (elementArray.length - drawSize));
+      gl.drawElements(gl.TRIANGLE_STRIP, drawSize, gl.UNSIGNED_SHORT, drawOffset);
+    }
+    // clear the error flag -- generating a WebGL error is normal here.
+    gl.getError();
+  }
+
+  function start() {
+    var manifest = {
+      title  : "drawElements on random sub-array",
+      frameCallback : drawElementsRandomSubArray,
+      contextCreationFlags: {alpha: false},
+      frameMethod: "setTimeoutZero",
+      height: 512,
+      width: 512
+    };
+    var test = new WebGLPerformanceTest(manifest);
+    var gl = test.gl;
+
+    var vertexShaderString =
+    'attribute vec2 vertexPosition;                  \n\
+     attribute vec3 vertexColor;                     \n\
+     varying vec3 varyingColor;                      \n\
+     void main(void) {                               \n\
+       varyingColor = vertexColor;                   \n\
+       gl_Position = vec4(vertexPosition, 0.0, 1.0); \n\
+     }                                               \n';
+
+    var fragmentShaderString =
+    'precision mediump float;                   \n\
+     varying vec3 varyingColor;                 \n\
+     void main(void) {                          \n\
+       gl_FragColor = vec4(varyingColor, 1.0);  \n\
+     }                                          \n';
+
+    var vertexShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vertexShader, vertexShaderString);
+    gl.compileShader(vertexShader);
+
+    var fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fragmentShader, fragmentShaderString);
+    gl.compileShader(fragmentShader);
+
+    var program = gl.createProgram();
+
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+
+    var vertexPositionAttrLoc = 0;
+    var vertexColorAttrLoc = 1;
+    gl.bindAttribLocation(program, vertexPositionAttrLoc, "vertexPosition");
+    gl.bindAttribLocation(program, vertexColorAttrLoc, "vertexColor");
+
+    gl.linkProgram(program);
+    gl.useProgram(program);
+
+    var vertexPositionBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+
+    // should be smaller than 65536 so that we can have some out-of-range indices.
+    var numVertices = 32768;
+
+    // generating the vertex array
+    var vertexArray = new Float32Array(numVertices * 5);
+    var x = 0, y = 0, g = 0, b = 0;
+    for (var i = 0; i < numVertices; i++) {
+      // for the position, we do a random walk, tweaking the x and y values only a bit
+      // at each iteration, so that we end up with small triangles. This allows us to
+      // render a much larger number of triangles.
+      x += (pseudoRandom() - 0.5) * 0.01;
+      if (x > 1) x = 1;
+      if (x < -1) x = -1;
+      y += (pseudoRandom() - 0.5) * 0.01;
+      if (y > 1) y = 1;
+      if (y < -1) y = -1;
+      // Let's also do a random walk for colors, this is inessential, but will give prettier coloring
+      g += (pseudoRandom() - 0.5) * 0.05;
+      if (g > 1) g = 1;
+      if (g < 0) g = 0;
+      b += (pseudoRandom() - 0.5) * 0.05;
+      if (b > 1) b = 1;
+      if (b < 0) b = 0;
+      vertexArray[5 * i + 0] = x;
+      vertexArray[5 * i + 1] = y;
+      vertexArray[5 * i + 2] = 0;
+      vertexArray[5 * i + 3] = g;
+      vertexArray[5 * i + 4] = b;
+    }
+    gl.bufferData(gl.ARRAY_BUFFER, vertexArray, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(vertexPositionAttrLoc);
+    gl.enableVertexAttribArray(vertexColorAttrLoc);
+    gl.vertexAttribPointer(vertexPositionAttrLoc, 2, gl.FLOAT, false, 20, 0);
+    gl.vertexAttribPointer(vertexColorAttrLoc,    3, gl.FLOAT, false, 20, 8);
+
+    var indexBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+
+    // generating the element array buffer
+    elementArray = new Uint16Array(65536);
+    for (var i = 0; i < elementArray.length; i++) {
+      // these values are in range
+      elementArray[i] = i % numVertices;
+    }
+    for (var i = 0; i < elementArray.length; i += elementArray.length / 4) {
+      // out of range values. See comment on drawElementsRandomSubArray
+      elementArray[i] = 65535;
+    }
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, elementArray, gl.STATIC_DRAW);
+
+    test.run();
+  }
+</script>
+<body onload="start();">

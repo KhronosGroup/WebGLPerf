@@ -1,0 +1,26 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no">
+</head>
+<script src="WebGLPerformanceTest.js"></script>
+<script>
+  function clearWithRandomColorAndReadPixels(test) {
+    var gl = test.gl;
+    gl.clearColor(Math.random(), Math.random(), Math.random(), 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    var width = test.canvas.width;
+    var height = test.canvas.height;
+    var pixels = new Uint8Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+  }
+
+  function start() {
+    var manifest = {
+      title  : "Clear with varying color and readPixels",
+      frameCallback : clearWithRandomColorAndReadPixels
+    };
+    test(manifest);
+  }
+</script>
+<body onload="start();">

@@ -1,0 +1,34 @@
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no">
+</head>
+<script src="WebGLPerformanceTest.js"></script>
+<script>
+
+  var buf, width, height;
+
+  function texImage2DWithTypedArray(test) {
+    var gl = test.gl;
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+  }
+
+  function start() {
+    var manifest = {
+      title  : "texImage2D with TypedArray",
+      repeat : 10,
+      frameCallback : texImage2DWithTypedArray,
+      frameMethod : "setTimeoutZero"
+    };
+    var test = new WebGLPerformanceTest(manifest);
+
+    var gl = test.gl;
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    width = 1024;
+    height = 1024;
+    buf = new Uint8Array(width * height * 4);
+
+    test.run();
+  }
+</script>
+<body onload="start();">
